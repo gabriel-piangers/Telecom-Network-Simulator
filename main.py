@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
@@ -14,6 +15,7 @@ app = FastAPI(
 )
 
 topology = Topology()
+_tickets: list[dict] = []          # in-memory ticket store
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +48,33 @@ def _get_by_ip(ip: str):
     if node.type == "PON":
         raise HTTPException(status_code=404, detail=f"No device found with IP {ip}.")
     return node
+
+
+# ---------------------------------------------------------------------------
+# Clock
+# ---------------------------------------------------------------------------
+
+@app.get("/clock", summary="Get current simulated time")
+def get_clock():
+    """Return the current simulated clock time."""
+    return {
+        "t": topology.clock.t,
+        "timestamp": topology.clock.stamp(),
+    }
+
+
+@app.post("/clock/advance", summary="Advance the simulated clock")
+def advance_clock(seconds: int = Query(ge=1, le=86400)):
+    """Advance the simulated clock by *seconds* and return the new time.
+
+    Useful for testing time-dependent behaviour such as a reboot completing
+    or a flapping fault stabilising after the clock moves forward.
+    """
+    topology.clock.advance(seconds)
+    return {
+        "t": topology.clock.t,
+        "timestamp": topology.clock.stamp(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +114,45 @@ def get_device(ip: str):
     """Full detail for one device including metrics. Returns 404 if unknown."""
     node = _get_by_ip(ip)
     return {**node.to_dict(), "status": _observable_status(node)}
+
+
+@app.get("/devices/{ip}/neighbors", summary="Get device neighbors")
+def get_neighbors(ip: str):
+    """Return the upstream device and sibling ONTs sharing the same PON port.
+
+    Helps the agent correlate multiple unreachable ONTs to a common parent.
+    The PON itself is not returned (it has no IP) but its sibling ONTs are,
+    so the agent can check whether other devices on the same branch are also
+    affected.
+    """
+    node = _get_by_ip(ip)
+
+    # Walk up to nearest IP-bearing ancestor (skips the PON)
+    ancestor = node.parent
+    while ancestor and ancestor.ip is None:
+        ancestor = ancestor.parent
+
+    # Siblings share the same direct parent (the PON)
+    siblings = []
+    if node.parent:
+        for child in node.parent.children:
+            if child and child is not node and child.ip is not None:
+                siblings.append({
+                    "name": child.name,
+                    "ip": child.ip,
+                    "status": _observable_status(child),
+                })
+
+    return {
+        "node": node.name,
+        "ip": node.ip,
+        "upstream": {
+            "name": ancestor.name,
+            "ip": ancestor.ip,
+            "status": _observable_status(ancestor),
+        } if ancestor else None,
+        "siblings": siblings,
+    }
 
 
 @app.get("/devices/{ip}/logs", summary="Get device logs")
@@ -175,6 +243,95 @@ def load_scenario(scenario: dict):
         raise HTTPException(status_code=400, detail=str(exc))
     return get_active_alerts(topology)
 
+
+# ---------------------------------------------------------------------------
+# Tickets
+# ---------------------------------------------------------------------------
+
+VALID_ACTIONS = {
+    "reboot_device",
+    "dispatch_technician",
+    "check_cabinet_power",
+    "contact_customer",
+    "inspect_fiber",
+}
+
+
+@app.post("/tickets", summary="Submit an investigation ticket", status_code=201)
+def submit_ticket(ticket: dict):
+    """Submit the agent's investigation result as a structured ticket.
+
+    The ticket is stored in memory and can be retrieved later for evaluation
+    against the scenario's ``expected`` ground truth.
+
+    Required fields::
+
+        {
+            "alert_ids":        ["alert-ONT-01-01-UNREACHABLE-10800"],
+            "summary":          "Short description of the incident",
+            "root_causes": [
+                {
+                    "node":               "PON-01",
+                    "fault":              "los",
+                    "affected_nodes":     ["ONT-01-01", "ONT-01-02"],
+                    "recommended_action": "dispatch_technician"
+                }
+            ],
+            "evidence":    ["OLT-01 log: PON-01 deregistered (reason: LOS)"],
+            "confidence":  "high"
+        }
+
+    Valid ``recommended_action`` values: ``reboot_device``, ``dispatch_technician``,
+    ``check_cabinet_power``, ``contact_customer``, ``inspect_fiber``.
+
+    Returns **400** if required fields are missing or action values are invalid.
+    """
+    # Validate required top-level fields
+    for field in ("alert_ids", "summary", "root_causes", "evidence", "confidence"):
+        if field not in ticket:
+            raise HTTPException(status_code=400, detail=f"Missing required field: '{field}'.")
+
+    # Validate each root cause entry
+    for rc in ticket.get("root_causes", []):
+        for field in ("node", "fault", "affected_nodes", "recommended_action"):
+            if field not in rc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Root cause entry missing required field: '{field}'.",
+                )
+        if rc["recommended_action"] not in VALID_ACTIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Invalid recommended_action '{rc['recommended_action']}'. "
+                    f"Valid values: {sorted(VALID_ACTIONS)}."
+                ),
+            )
+
+    ticket["submitted_at"] = datetime.now(timezone.utc).isoformat()
+    ticket["id"] = f"ticket-{len(_tickets) + 1:04d}"
+    _tickets.append(ticket)
+    return ticket
+
+
+@app.get("/tickets", summary="List all submitted tickets")
+def list_tickets():
+    """Return all tickets submitted in the current session."""
+    return _tickets
+
+
+@app.get("/tickets/{ticket_id}", summary="Get a single ticket")
+def get_ticket(ticket_id: str):
+    """Return the ticket with the given id. Returns 404 if not found."""
+    for t in _tickets:
+        if t["id"] == ticket_id:
+            return t
+    raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found.")
+
+
+# ---------------------------------------------------------------------------
+# Reset
+# ---------------------------------------------------------------------------
 
 @app.post("/reset", summary="Reset all faults to normal")
 def reset():

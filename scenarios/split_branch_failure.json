@@ -12,5 +12,21 @@
       "fault": "hung",
       "active_for_seconds": 600
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "PON-01",
+        "fault": "los",
+        "affected_nodes": ["ONT-01-01", "ONT-01-02", "ONT-01-03", "ONT-01-04"],
+        "recommended_action": "dispatch_technician"
+      },
+      {
+        "node": "ONT-02-02",
+        "fault": "hung",
+        "affected_nodes": [],
+        "recommended_action": "reboot_device"
+      }
+    ]
+  }
 }

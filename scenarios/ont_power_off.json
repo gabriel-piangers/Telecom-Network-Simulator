@@ -7,5 +7,15 @@
       "fault": "power off",
       "active_for_seconds": 1500
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "ONT-02-03",
+        "fault": "power off",
+        "affected_nodes": [],
+        "recommended_action": "contact_customer"
+      }
+    ]
+  }
 }

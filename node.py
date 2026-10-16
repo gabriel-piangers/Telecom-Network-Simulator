@@ -49,10 +49,10 @@ RECOVERY_LOG = {
 # What the PARENT (e.g. the OLT) logs about this node. Note the clues:
 # "dying gasp" = power failure, "LOS" = fiber, "OMCI timeout" = device alive but not responding
 PARENT_VIEW = {
-    "los": ("ERROR", "pon", "{n}: deregistered (reason: LOS)"),
-    "power off": ("WARN", "pon", "{n}: deregistered (reason: dying gasp)"),
-    "hung": ("WARN", "omci", "{n}: OMCI keepalive timeout, no response"),
-    "registered": ("INFO", "pon", "{n}: registered"),
+    "los": ("ERROR", "pon", "{n} ({ip}): deregistered (reason: LOS)"),
+    "power off": ("WARN", "pon", "{n} ({ip}): deregistered (reason: dying gasp)"),
+    "hung": ("WARN", "omci", "{n} ({ip}): OMCI keepalive timeout, no response"),
+    "registered": ("INFO", "pon", "{n} ({ip}): registered"),
 }
 # Routine background noise: (weight, level, source, message). Formatted with random values.
 BACKGROUND = {
@@ -227,20 +227,21 @@ class Node:
             segs = d._segments(until)
             for i, (a, b, fault) in enumerate(segs):
                 prev = segs[i - 1][2] if i else "normal"
+                ip_str = d.ip or "unknown"
                 if since <= a <= until:
                     if fault in PARENT_VIEW and fault != "registered":
-                        out.append((a,) + tuple(PARENT_VIEW[fault][:2]) + (PARENT_VIEW[fault][2].format(n=d.name),))
+                        out.append((a,) + tuple(PARENT_VIEW[fault][:2]) + (PARENT_VIEW[fault][2].format(n=d.name, ip=ip_str),))
                     elif fault == "normal" and prev in ("los", "power off", "hung", "flapping"):
-                        out.append((a,) + tuple(PARENT_VIEW["registered"][:2]) + (PARENT_VIEW["registered"][2].format(n=d.name),))
+                        out.append((a,) + tuple(PARENT_VIEW["registered"][:2]) + (PARENT_VIEW["registered"][2].format(n=d.name, ip=ip_str),))
                 if fault == "hung":   # repeated while it stays frozen
                     for t, _ in d._buckets("omci", max(a, since), min(b, until), 120):
-                        out.append((t, "WARN", "omci", f"{d.name}: OMCI timeout, retrying"))
+                        out.append((t, "WARN", "omci", f"{d.name} ({ip_str}): OMCI timeout, retrying"))
                 if fault == "flapping":
                     for dn, up in d._flap_windows(a, min(b, until)):
                         if since <= dn <= until:
-                            out.append((dn, "ERROR", "pon", f"{d.name}: deregistered (reason: LOS)"))
+                            out.append((dn, "ERROR", "pon", f"{d.name} ({ip_str}): deregistered (reason: LOS)"))
                         if since <= up <= until:
-                            out.append((up, "INFO", "pon", f"{d.name}: registered"))
+                            out.append((up, "INFO", "pon", f"{d.name} ({ip_str}): registered"))
         return out
 
     def get_logs(self, minutes=60) -> list[str] | None:

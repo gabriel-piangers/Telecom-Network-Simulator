@@ -7,5 +7,15 @@
       "fault": "flapping",
       "active_for_seconds": 3300
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "ONT-02-02",
+        "fault": "flapping",
+        "affected_nodes": [],
+        "recommended_action": "inspect_fiber"
+      }
+    ]
+  }
 }

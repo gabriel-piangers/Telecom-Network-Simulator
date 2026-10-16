@@ -17,5 +17,27 @@
       "fault": "hung",
       "active_for_seconds": 480
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "ONT-01-02",
+        "fault": "degraded",
+        "affected_nodes": [],
+        "recommended_action": "inspect_fiber"
+      },
+      {
+        "node": "ONT-02-01",
+        "fault": "flapping",
+        "affected_nodes": [],
+        "recommended_action": "inspect_fiber"
+      },
+      {
+        "node": "ONT-01-04",
+        "fault": "hung",
+        "affected_nodes": [],
+        "recommended_action": "reboot_device"
+      }
+    ]
+  }
 }

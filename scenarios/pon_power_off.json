@@ -7,5 +7,15 @@
       "fault": "power off",
       "active_for_seconds": 900
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "PON-02",
+        "fault": "power off",
+        "affected_nodes": ["ONT-02-01", "ONT-02-02", "ONT-02-03", "ONT-02-04"],
+        "recommended_action": "check_cabinet_power"
+      }
+    ]
+  }
 }

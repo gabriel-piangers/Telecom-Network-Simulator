@@ -17,5 +17,15 @@
       "fault": "degraded",
       "active_for_seconds": 3600
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "PON-01",
+        "fault": "degraded",
+        "affected_nodes": ["ONT-01-01", "ONT-01-02", "ONT-01-03", "ONT-01-04"],
+        "recommended_action": "dispatch_technician"
+      }
+    ]
+  }
 }

@@ -7,5 +7,15 @@
       "fault": "hung",
       "active_for_seconds": 720
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "ONT-01-03",
+        "fault": "hung",
+        "affected_nodes": [],
+        "recommended_action": "reboot_device"
+      }
+    ]
+  }
 }

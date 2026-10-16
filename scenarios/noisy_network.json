@@ -22,5 +22,33 @@
       "fault": "degraded",
       "active_for_seconds": 1200
     }
-  ]
+  ],
+  "expected": {
+    "root_causes": [
+      {
+        "node": "ONT-01-01",
+        "fault": "power off",
+        "affected_nodes": [],
+        "recommended_action": "contact_customer"
+      },
+      {
+        "node": "ONT-01-03",
+        "fault": "hung",
+        "affected_nodes": [],
+        "recommended_action": "reboot_device"
+      },
+      {
+        "node": "ONT-02-01",
+        "fault": "flapping",
+        "affected_nodes": [],
+        "recommended_action": "inspect_fiber"
+      },
+      {
+        "node": "ONT-02-04",
+        "fault": "degraded",
+        "affected_nodes": [],
+        "recommended_action": "inspect_fiber"
+      }
+    ]
+  }
 }
