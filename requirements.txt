@@ -1,2 +1,2 @@
-fastapi
-uvicorn[standard]
+fastapi>=0.143.0,<0.144.0
+uvicorn[standard]>=0.54.0,<0.55.0

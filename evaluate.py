@@ -162,7 +162,6 @@ def cmd_report() -> None:
         print("No tickets found. Submit tickets via POST /tickets first.")
         sys.exit(0)
 
-    # Index tickets by scenario name (stored in ticket summary prefix convention)
     scenario_files = sorted(
         os.path.join("scenarios", f)
         for f in os.listdir("scenarios")
@@ -176,12 +175,18 @@ def cmd_report() -> None:
         expected = scenario.get("expected")
         if not expected:
             continue
-        # Find most recent ticket mentioning this scenario name
+        # Prefer exact match on scenario_name field; fall back to summary substring
         match = next(
             (t for t in reversed(tickets)
-             if scenario["name"].lower() in t.get("summary", "").lower()),
+             if t.get("scenario_name") == scenario["name"]),
             None,
         )
+        if match is None:
+            match = next(
+                (t for t in reversed(tickets)
+                 if scenario["name"].lower() in t.get("summary", "").lower()),
+                None,
+            )
         if not match:
             rows.append((scenario["name"], "—", "no ticket found"))
             continue

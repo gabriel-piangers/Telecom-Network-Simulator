@@ -51,6 +51,16 @@ def _get_by_ip(ip: str):
 
 
 # ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+
+@app.get("/health", summary="Health check")
+def health():
+    """Returns 200 when the simulator is running and ready."""
+    return {"status": "ok", "nodes": len(topology.all_nodes())}
+
+
+# ---------------------------------------------------------------------------
 # Clock
 # ---------------------------------------------------------------------------
 
@@ -267,6 +277,7 @@ def submit_ticket(ticket: dict):
     Required fields::
 
         {
+            "scenario_name":    "PON-01 fiber loss",
             "alert_ids":        ["alert-ONT-01-01-UNREACHABLE-10800"],
             "summary":          "Short description of the incident",
             "root_causes": [
@@ -280,6 +291,9 @@ def submit_ticket(ticket: dict):
             "evidence":    ["OLT-01 log: PON-01 deregistered (reason: LOS)"],
             "confidence":  "high"
         }
+
+    ``scenario_name`` is optional but strongly recommended — it is used by the
+    evaluation harness to match tickets to scenarios for scoring.
 
     Valid ``recommended_action`` values: ``reboot_device``, ``dispatch_technician``,
     ``check_cabinet_power``, ``contact_customer``, ``inspect_fiber``.
