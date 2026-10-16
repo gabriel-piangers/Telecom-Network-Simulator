@@ -336,10 +336,10 @@ class Node:
         if status == "offline":
             return {"ping_max": None, "ping_avg": None, "ping_min": None, "loss_pct": 100}
         elif status == "degraded":
-            rtts = [round(rng.lognormvariate(math.log(40 + latency), 0.5), 2)
+            rtts = [round(rng.lognormvariate(math.log(40 + latency), 0.5))
                     for _ in range(10) if rng.random() > 0.4]
         else:
-            rtts = [round(rng.lognormvariate(math.log(5 + latency), 0.2), 2)
+            rtts = [round(rng.lognormvariate(math.log(1 + latency), 0.2))
                     for _ in range(10) if rng.random() > 0.01]
         if not rtts:
             return self.get_ping("offline")

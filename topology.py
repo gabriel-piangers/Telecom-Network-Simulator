@@ -9,9 +9,9 @@ class Topology:
         # OLT — 2 PON ports
         olt = Node("OLT-01", "OLT", ip="10.0.0.1", ports=2, clock=self.clock)
 
-        # PON branches — 4 ONT ports each (clock inherited)
-        pon1 = Node("PON-01", "PON", ip="10.0.1.0", ports=4, parent=olt, parent_port=0)
-        pon2 = Node("PON-02", "PON", ip="10.0.2.0", ports=4, parent=olt, parent_port=1)
+        # PON branches — passive fiber junctions, no IP (clock inherited)
+        pon1 = Node("PON-01", "PON", ports=4, parent=olt, parent_port=0)
+        pon2 = Node("PON-02", "PON", ports=4, parent=olt, parent_port=1)
 
         # ONTs under PON-01
         ont_01_01 = Node("ONT-01-01", "ONT", ip="10.0.1.1", plan_mbps=600, parent=pon1, parent_port=0)
@@ -39,6 +39,13 @@ class Topology:
     def get_node(self, name: str) -> Node:
         """Return the node with the given name, or raise KeyError."""
         return self._nodes[name]
+
+    def get_node_by_ip(self, ip: str) -> Node:
+        """Return the node with the given IP, or raise KeyError."""
+        for node in self._nodes.values():
+            if node.ip == ip:
+                return node
+        raise KeyError(ip)
 
     def all_nodes(self) -> list[Node]:
         return list(self._nodes.values())
@@ -73,7 +80,13 @@ class Topology:
             node.set_fault(fault, at=self.clock.t - backdate)
 
     def reset(self) -> None:
-        """Set all nodes back to fault='normal' at the current clock time."""
+        """Reset all nodes to fault='normal', clearing their fault history.
+
+        Rebuilds fault_history as a single baseline entry at t=0 so that
+        subsequent apply_scenario() calls with active_for_seconds backdating
+        always have a valid (earlier) history to append to.
+        """
         for node in self._nodes.values():
-            if node.fault != "normal":
-                node.set_fault("normal")
+            node.fault = "normal"
+            node.fault_history = [(0, "normal")]
+            node.extra = []

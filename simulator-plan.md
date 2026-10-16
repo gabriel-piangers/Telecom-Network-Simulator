@@ -229,7 +229,7 @@ investigates.
 
 ### Sub-Task 4 — Build the FastAPI REST layer
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Expose the simulator through a REST API that is the sole interface for the AI agent.
