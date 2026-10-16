@@ -1,0 +1,21 @@
+{
+  "name": "Mixed ONT degradation",
+  "description": "Three ONTs on different PON branches with distinct fault types. ONT-01-02 has a degraded optical signal (bad fiber connector or bend). ONT-02-01 is flapping — repeatedly dropping and reconnecting. ONT-01-04 is hung — the device is alive at the optical level but its firmware has frozen and it is no longer responding to OMCI keepalives.",
+  "faults": [
+    {
+      "node": "ONT-01-02",
+      "fault": "degraded",
+      "active_for_seconds": 1800
+    },
+    {
+      "node": "ONT-02-01",
+      "fault": "flapping",
+      "active_for_seconds": 3000
+    },
+    {
+      "node": "ONT-01-04",
+      "fault": "hung",
+      "active_for_seconds": 480
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "ONT firmware freeze",
+  "description": "ONT-01-03 froze 12 minutes ago. Its optical signal and physical link are intact — the OLT can still see it at the fiber level — but the device stopped responding to OMCI keepalives. The logs show memory warnings and a watchdog failure roughly 2 minutes before the freeze. The correct action is a remote reboot.",
+  "faults": [
+    {
+      "node": "ONT-01-03",
+      "fault": "hung",
+      "active_for_seconds": 720
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Mass power outage",
+  "description": "Both PON branches lost power simultaneously 20 minutes ago, taking the entire network of 8 ONTs offline. This simulates a power failure at the street cabinet or a UPS failure. The OLT itself is still operational. The agent should observe that all nodes across both PONs are unreachable, identify the two PONs as the common failure points, and check the power supply at the cabinet.",
+  "faults": [
+    {
+      "node": "PON-01",
+      "fault": "power off",
+      "active_for_seconds": 1200
+    },
+    {
+      "node": "PON-02",
+      "fault": "power off",
+      "active_for_seconds": 1200
+    }
+  ]
+}

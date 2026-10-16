@@ -1,0 +1,21 @@
+{
+  "name": "Cascading signal degradation",
+  "description": "PON-01 itself is degraded (weak laser output or dirty SFP), and two of its ONTs are also showing degraded signal. The challenge for the agent is to determine whether the ONT degradation is caused by the upstream PON issue or is independent. Since the PON is the common ancestor, the agent should suspect the PON first and check whether fixing it resolves the ONTs.",
+  "faults": [
+    {
+      "node": "PON-01",
+      "fault": "degraded",
+      "active_for_seconds": 3600
+    },
+    {
+      "node": "ONT-01-01",
+      "fault": "degraded",
+      "active_for_seconds": 3600
+    },
+    {
+      "node": "ONT-01-03",
+      "fault": "degraded",
+      "active_for_seconds": 3600
+    }
+  ]
+}

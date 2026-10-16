@@ -1,0 +1,11 @@
+{
+  "name": "PON-02 power failure",
+  "description": "PON-02 lost power 15 minutes ago, taking all 4 ONTs on that branch offline. Unlike a fiber cut (LOS), the OLT log shows dying-gasp deregistration messages for each ONT before the PON itself disappeared. The agent must distinguish this from a LOS scenario by reading the deregistration reason in the OLT logs.",
+  "faults": [
+    {
+      "node": "PON-02",
+      "fault": "power off",
+      "active_for_seconds": 900
+    }
+  ]
+}

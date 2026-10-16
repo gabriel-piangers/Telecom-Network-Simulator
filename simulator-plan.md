@@ -191,7 +191,7 @@ checks for that node.
 
 ### Sub-Task 3 — Define scenario files
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Define the scenario JSON format and create example files that the agent will be tested

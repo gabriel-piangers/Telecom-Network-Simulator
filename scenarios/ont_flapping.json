@@ -1,0 +1,11 @@
+{
+  "name": "ONT link flapping",
+  "description": "ONT-02-02 has been flapping for the past 55 minutes — its link drops for 10-60 seconds every few minutes before recovering. This is typically caused by a loose fiber connector, a dirty optical surface, or marginal signal levels at the bend. The logs show repeated rapid deregistration/registration cycles. Unlike LOS, the device is reachable between drops.",
+  "faults": [
+    {
+      "node": "ONT-02-02",
+      "fault": "flapping",
+      "active_for_seconds": 3300
+    }
+  ]
+}

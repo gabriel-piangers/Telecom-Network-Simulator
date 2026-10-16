@@ -1,0 +1,16 @@
+{
+  "name": "Split branch failure",
+  "description": "Two independent faults on different parts of the network at the same time: PON-01 has lost signal (LOS), taking its entire branch offline; and on the other branch, ONT-02-02 has frozen (hung). The agent must recognise these as two separate root causes and handle them independently — the PON-01 LOS is not related to the ONT-02-02 freeze.",
+  "faults": [
+    {
+      "node": "PON-01",
+      "fault": "los",
+      "active_for_seconds": 1800
+    },
+    {
+      "node": "ONT-02-02",
+      "fault": "hung",
+      "active_for_seconds": 600
+    }
+  ]
+}

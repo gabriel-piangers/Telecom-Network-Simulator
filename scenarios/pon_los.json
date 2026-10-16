@@ -1,0 +1,11 @@
+{
+  "name": "PON-01 fiber loss",
+  "description": "PON-01 has lost optical signal (LOS), taking all 4 ONTs on that branch offline. The fault has been active for 40 minutes, so the OLT and PON logs contain deregistration events and the agent can correlate the timeline.",
+  "faults": [
+    {
+      "node": "PON-01",
+      "fault": "los",
+      "active_for_seconds": 2400
+    }
+  ]
+}

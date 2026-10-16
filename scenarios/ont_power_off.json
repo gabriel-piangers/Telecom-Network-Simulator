@@ -1,0 +1,11 @@
+{
+  "name": "ONT power outage",
+  "description": "ONT-02-03 lost power 25 minutes ago (e.g. customer unplugged the device or a power cut at the premises). The OLT received a dying-gasp signal before the ONT went dark, which distinguishes this from a fiber cut. The agent should identify the dying-gasp log entry and recommend checking power at the customer premises.",
+  "faults": [
+    {
+      "node": "ONT-02-03",
+      "fault": "power off",
+      "active_for_seconds": 1500
+    }
+  ]
+}
