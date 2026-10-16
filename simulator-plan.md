@@ -25,14 +25,39 @@ action endpoints, and generates alerts that act as the trigger for agent investi
 ```
 simulator/
 ├── main.py           ← FastAPI app entrypoint
-├── topology.py       ← Network graph: builds and holds all Node instances
-├── node.py           ← Node class (extended from current implementation)
+├── topology.py       ← Network graph: builds and holds all Node instances + Clock
+├── node.py           ← Node class (COMPLETE — do not modify)
 ├── alerts.py         ← Alert generation logic (derives alerts from node state)
 ├── scenarios/
-│   ├── pon_down.json       ← Example scenario file
-│   └── ont_degraded.json   ← Example scenario file
+│   ├── pon_los.json          ← PON complete fiber loss
+│   └── ont_degraded.json     ← Two ONTs with degraded signal
 └── requirements.txt
 ```
+
+---
+
+## Key facts about node.py (COMPLETE — read before implementing)
+
+`node.py` is fully implemented and must not be changed. The agent and remaining modules
+must be built around its existing API:
+
+- **`Clock`** — shared simulated time object. Must be created once in `Topology.__init__`
+  and passed to the root OLT node; child nodes inherit it automatically via `parent.clock`.
+- **Fault types** — valid values are: `"normal"`, `"los"`, `"power off"`, `"hung"`,
+  `"degraded"`, `"flapping"`. There is no `"down"` fault.
+- **Offline states** — `offline = ["los", "power off"]` (module-level constant). A node
+  is offline if its own fault or any ancestor's fault is in this list.
+- **`set_fault(fault, at=None)`** — `at` allows backdating a fault to a past clock time,
+  so scenarios can present the agent with a fault that has been active for some time.
+- **`get_logs(minutes=60)`** — returns a list of formatted log strings for the last N
+  minutes, or `None` if the device is currently unreachable (offline or hung).
+- **`ping(dst_ip)`** — runs a simulated 10-ping test to a destination IP. Returns a dict
+  with `ping_max`, `ping_avg`, `ping_min`, `loss_pct`, or all `None` if unreachable.
+  **Side effect:** advances `clock.t` by 10 seconds.
+- **`reboot()`** — the only recovery action. Clears a `"hung"` fault and logs the reboot.
+  Calling it on a non-hung node only adds a log entry (no fault state change).
+- **`to_dict()`** — returns all node metadata + current metrics as a JSON-serializable dict.
+- **`descendants()`** — returns all downstream nodes recursively (useful in `alerts.py`).
 
 ---
 
@@ -40,196 +65,211 @@ simulator/
 
 ---
 
-### Sub-Task 1 — Finish fixing the Node class
+### Sub-Task 1 — Build the Topology module
 
-**Status:** [ ] pending
-
-**Intent:**
-You already fixed the main bugs (`fault="normal"` default, `signal_dbm` typo,
-`status()`-based offline check in `metrics()`). Two small issues remain before
-the class is API-ready.
-
-**Expected Outcomes:**
-- `turn_on()` and `restart()` leave the node in `fault="normal"` (not `None`)
-- `Node.to_dict()` returns all metadata + metrics as a JSON-serializable dict
-
-**Todo List:**
-1. Fix `turn_on()`: change `self.fault = None` → `self.fault = "normal"`
-2. Fix `restart()`: change `self.fault = None` → `self.fault = "normal"`
-3. Add a `to_dict()` method that returns:
-   `{ "name", "type", "ports", "parent", "fault", "status", "metrics" }`
-   where `parent` is `node.parent.name` (or `None`) and `metrics` calls `self.metrics()`
-
-**Relevant Context:**
-- [`node.py`](node.py) lines 82–88 — `turn_on()` and `restart()` still set `fault = None`
-- Metric splitting by device type is **not needed** — all 7 metrics are valid for OLT,
-  PON, and ONT in this PoC context
----
-
-### Sub-Task 2 — Build the Topology module
-
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
-Extract topology construction from `main.py` into a dedicated `topology.py` module that
-builds the network graph and acts as the single source of truth for all node state. It
-must be importable by the API layer without side effects.
+Create `topology.py` to construct the network graph and act as the single in-memory source
+of truth for all node state. It must own the shared `Clock`, assign IPs to nodes, and
+provide the scenario/reset interface used by the API layer.
 
 **Expected Outcomes:**
-- A `Topology` class (or module-level singleton) that holds all nodes by name
-- Methods to look up a node by name, list all nodes, list nodes by type
-- The topology is built once at startup and lives in memory for the process lifetime
-- `main.py` becomes the FastAPI app entrypoint only, with no topology logic
+- A `Topology` class that builds a GPON tree: 1 OLT → 2 PONs → 4 ONTs per PON (9 nodes total)
+- Each node has a meaningful name, an IP address, and a bandwidth plan where applicable
+- All nodes share a single `Clock` instance (created in `Topology.__init__`)
+- `Clock` is initialized with `start=3*3600` so there are 3 hours of log history available
+- Methods to look up, list, and filter nodes are available
+- Scenarios can be applied and reset cleanly
+
+**Node layout:**
+
+| Name     | Type | IP         | plan_mbps | Parent   | Parent port |
+|----------|------|------------|-----------|----------|-------------|
+| OLT-01   | OLT  | 10.0.0.1   | —         | —        | —           |
+| PON-01   | PON  | 10.0.1.0   | —         | OLT-01   | 0           |
+| PON-02   | PON  | 10.0.2.0   | —         | OLT-01   | 1           |
+| ONT-01-01| ONT  | 10.0.1.1   | 600       | PON-01   | 0           |
+| ONT-01-02| ONT  | 10.0.1.2   | 300       | PON-01   | 1           |
+| ONT-01-03| ONT  | 10.0.1.3   | 300       | PON-01   | 2           |
+| ONT-01-04| ONT  | 10.0.1.4   | 100       | PON-01   | 3           |
+| ONT-02-01| ONT  | 10.0.2.1   | 600       | PON-02   | 0           |
+| ONT-02-02| ONT  | 10.0.2.2   | 300       | PON-02   | 1           |
+| ONT-02-03| ONT  | 10.0.2.3   | 300       | PON-02   | 2           |
+| ONT-02-04| ONT  | 10.0.2.4   | 100       | PON-02   | 3           |
 
 **Todo List:**
 1. Create `topology.py` with a `Topology` class
-2. In `__init__`, build the default GPON tree: 1 OLT → 2 PONs → 4 ONTs (same as current
-   `main.py`) — name them meaningfully (e.g. `OLT-01`, `PON-01`, `ONT-01-01`)
-3. Add `get_node(name) -> Node` — raises `KeyError` if not found
-4. Add `all_nodes() -> list[Node]` — returns all nodes
-5. Add `nodes_by_type(type: str) -> list[Node]`
-6. Add `apply_scenario(scenario: dict)` — receives a parsed scenario dict and calls
-   `set_fault()` on the named nodes (see Sub-Task 4 for scenario format)
-7. Add `reset()` — sets all node faults back to `"normal"`
-8. Import and instantiate `Topology` once at the top of `main.py` (the FastAPI app)
+2. In `__init__`, create `Clock(start=3*3600)` and assign to `self.clock`
+3. Build the full node tree from the table above, passing `clock=self.clock` only to
+   the OLT (children inherit it automatically)
+4. Store all nodes in `self._nodes: dict[str, Node]` keyed by name
+5. Add `get_node(name) -> Node` — raises `KeyError` if not found
+6. Add `all_nodes() -> list[Node]` — returns all nodes
+7. Add `nodes_by_type(type: str) -> list[Node]`
+8. Add `apply_scenario(scenario: dict)` — calls `reset()` first, then for each entry in
+   `scenario["faults"]`, calls `node.set_fault(fault, at=clock.t - backdate_seconds)` where
+   `backdate_seconds` comes from the optional `"active_for_seconds"` field (default `0`)
+9. Add `reset()` — calls `node.set_fault("normal")` on all nodes
 
 **Relevant Context:**
-- [`main.py`](main.py) — topology construction to migrate
-- [`node.py`](node.py) — `Node.__init__` signature
+- [`node.py`](node.py) — `Node.__init__` signature, `Clock` class, `set_fault(at=)`
+- OLT has `ports=2` (one per PON); each PON has `ports=4` (one per ONT)
 
 ---
 
-### Sub-Task 3 — Build the Alert Engine
+### Sub-Task 2 — Build the Alert Engine
 
 **Status:** [ ] pending
 
 **Intent:**
-Create an `alerts.py` module that scans the topology and generates a list of active alerts
-based on node states. Alerts are the trigger for the AI agent — they represent the
-"notification from Zabbix" in the real-world flow. Each alert must carry enough context
-for the agent to know where to start investigating.
+Create `alerts.py` to simulate how a monitoring dashboard like Zabbix fires alerts:
+one alert per metric threshold breach, per device, with no knowledge of root cause or
+grouping. Every node that is in a non-normal observable state fires its own alert.
+Discovering that multiple alerts share a common root cause is the agent's job, not the
+simulator's. The `fault` field must NOT be exposed in the alert — the agent must infer
+it from logs, metrics, and ping results.
 
 **Expected Outcomes:**
-- `get_active_alerts(topology)` returns a list of alert dicts
-- Each alert has: `id`, `severity`, `node_name`, `node_type`, `fault`, `message`, `timestamp`
-- Severity levels: `CRITICAL` (down), `MAJOR` (hung), `WARNING` (degraded)
-- Nodes with `fault="normal"` produce no alert
-- Downstream nodes that are offline due to a parent fault are NOT independently alerted
-  (the root-cause node generates the alert, not its children)
+- One alert per affected node — a PON going down produces 1 alert for the PON and
+  1 alert per offline ONT underneath it (5 alerts total, not 1 grouped alert)
+- Alert type is based on what the monitoring system would actually observe:
+  - Node unreachable (no ping response) → `"UNREACHABLE"`
+  - High packet loss or high latency → `"HIGH_LOSS"` / `"HIGH_LATENCY"`
+  - Degraded signal or low bandwidth → `"DEGRADED_SIGNAL"` / `"LOW_BANDWIDTH"`
+- Severity is based on impact: `CRITICAL` for unreachable, `WARNING` for degraded metrics
+- The `fault` field is absent — the agent must determine this through investigation
+- Result is sorted: CRITICAL first, then WARNING
 
-**Expected alert JSON shape:**
+**Alert JSON shape:**
 ```json
 {
-  "id": "alert-PON-01-1721000000",
+  "id": "alert-ONT-01-01-10800",
   "severity": "CRITICAL",
-  "node_name": "PON-01",
-  "node_type": "PON",
-  "fault": "down",
-  "message": "Node PON-01 is down. Downstream nodes affected: ONT-01-01, ONT-01-02",
-  "timestamp": "2024-07-14T20:00:00Z"
+  "node_name": "ONT-01-01",
+  "node_type": "ONT",
+  "check": "UNREACHABLE",
+  "message": "ONT-01-01 is not responding to ping.",
+  "timestamp": "2026-10-14 03:00:00"
 }
 ```
 
+**Check types and when they fire:**
+
+| check | severity | condition |
+|-------|----------|-----------|
+| `UNREACHABLE` | CRITICAL | `node.status()` is in `offline` or is `"hung"` |
+| `HIGH_LOSS` | WARNING | ping `loss_pct > 20` (only if reachable) |
+| `HIGH_LATENCY` | WARNING | ping `ping_avg > 80 ms` (only if reachable) |
+| `DEGRADED_SIGNAL` | WARNING | `signal_dbm < -28.0` (only if reachable) |
+| `LOW_BANDWIDTH` | WARNING | `bandwidth_pct < 50` (only if reachable) |
+
+A single node can fire multiple WARNING alerts (e.g. both `DEGRADED_SIGNAL` and
+`HIGH_LOSS` for a degraded ONT). A CRITICAL `UNREACHABLE` alert suppresses all other
+checks for that node.
+
 **Todo List:**
-1. Create `alerts.py` with a `get_active_alerts(topology) -> list[dict]` function
-2. Iterate over `topology.all_nodes()`; skip nodes whose fault is `"normal"`
-3. Skip nodes that are offline only because of a parent fault (i.e. their own `fault`
-   is `"normal"` but `status()` returns `"offline"`) — the parent already has an alert
-4. Map fault types to severities: `down` → `CRITICAL`, `hung` → `MAJOR`,
-   `degraded` → `WARNING`
-5. Build the downstream-affected list by walking `node.children` recursively
-6. Generate a stable `id` from `node_name + timestamp` (can be a simple f-string)
-7. Return the full list sorted by severity (CRITICAL first)
+1. Create `alerts.py` with `get_active_alerts(topology) -> list[dict]`
+2. For each node in `topology.all_nodes()`:
+   a. If `node.status()` is in `offline` or is `"hung"`, emit one `UNREACHABLE` CRITICAL
+      alert and skip the metric checks for that node
+   b. Otherwise, read `node.metrics()` and emit a `DEGRADED_SIGNAL` WARNING if
+      `signal_dbm < -28.0`, and a `LOW_BANDWIDTH` WARNING if `bandwidth_pct < 50`
+   c. Call `node.ping("1.1.1.1")` and emit `HIGH_LOSS` if `loss_pct > 20`, and
+      `HIGH_LATENCY` if `ping_avg > 80`
+3. Use `topology.clock.stamp()` for the timestamp field
+4. Generate `id` as `f"alert-{node.name}-{check}-{topology.clock.t}"`
+5. Return all alerts sorted: CRITICAL first, then WARNING
 
 **Relevant Context:**
-- Will be called by the `/alerts` API endpoint (Sub-Task 5)
-- `Node.status()` and `Node.fault` in [`node.py`](node.py)
+- [`node.py`](node.py) — `Node.status()`, `Node.metrics()`, `Node.ping()`, `Clock.stamp()`
+- `offline` list in `node.py`: `["los", "power off"]`
+- Calling `ping()` advances the clock by 10 s per call — this is acceptable for alert
+  generation since the dashboard would poll sequentially anyway
 
 ---
 
-### Sub-Task 4 — Define and implement the Scenario format
+### Sub-Task 3 — Define scenario files
 
 **Status:** [ ] pending
 
 **Intent:**
-Define a simple JSON format for scenario files that describe which nodes should have
-which faults. This allows testing multiple failure situations without changing code.
-The API will accept a scenario at runtime via a POST endpoint.
-
-**Expected Outcomes:**
-- A documented JSON schema for scenario files
-- At least 2 example scenario files under `scenarios/`
-- `Topology.apply_scenario()` correctly parses and applies the scenario
+Define the scenario JSON format and create example files that the agent will be tested
+against. The format supports backdating faults so the node has log history when the agent
+investigates.
 
 **Scenario JSON format:**
 ```json
 {
-  "name": "PON-01 complete failure",
-  "description": "Simulates a PON port going completely offline",
+  "name": "scenario name",
+  "description": "what this simulates",
   "faults": [
-    { "node": "PON-01", "fault": "down" },
-    { "node": "ONT-02-01", "fault": "degraded" }
+    {
+      "node": "PON-01",
+      "fault": "los",
+      "active_for_seconds": 2400
+    }
   ]
 }
 ```
+- `"active_for_seconds"` is optional (default `0`). When set, the fault is applied at
+  `clock.t - active_for_seconds`, giving the node log history for that duration.
 
 **Todo List:**
-1. Define the schema above (document it in a comment inside the scenario files)
-2. Create `scenarios/pon_down.json` — PON-01 set to `down`
-3. Create `scenarios/ont_degraded.json` — two ONTs set to `degraded`
-4. Ensure `Topology.apply_scenario()` (from Sub-Task 2) calls `reset()` before applying,
-   so loading a new scenario always starts from a clean state
-5. Validate node names and fault values when applying — return a clear error message
-   if a node name in the scenario does not exist in the topology
+1. Create `scenarios/pon_los.json` — PON-01 with `"los"`, active for 40 minutes (2400 s)
+2. Create `scenarios/ont_degraded.json` — ONT-01-02 `"degraded"` for 30 min, ONT-02-01
+   `"flapping"` for 50 min, ONT-01-04 `"hung"` for 8 min
+3. Verify that `Topology.apply_scenario()` correctly handles the `active_for_seconds` field
 
 **Relevant Context:**
-- `Topology.apply_scenario()` and `reset()` defined in Sub-Task 2
-- `Node.set_fault()` in [`node.py`](node.py)
+- `Topology.apply_scenario()` defined in Sub-Task 1
+- `set_fault(at=)` in [`node.py`](node.py) — `at` must be `≥` the previous fault's timestamp
 
 ---
 
-### Sub-Task 5 — Build the FastAPI REST layer
+### Sub-Task 4 — Build the FastAPI REST layer
 
 **Status:** [ ] pending
 
 **Intent:**
-Expose the simulator state and actions through a REST API that the AI agent will call.
-The API is the only interface between the agent and the simulator — it must cover
-topology inspection, metric reading, alert listing, action execution, and scenario loading.
+Expose the simulator through a REST API that is the sole interface for the AI agent.
+Endpoints cover: topology inspection, metric polling, log retrieval, ping tests, alert
+listing, the reboot action, and scenario/reset control.
 
 **Expected Outcomes:**
-- A running FastAPI app reachable at `http://localhost:8000`
-- Swagger UI available at `/docs`
-- All endpoints return clean JSON
+- FastAPI app running at `http://localhost:8000`, Swagger UI at `/docs`
+- All endpoints return clean JSON; unreachable-device responses use HTTP 503
+- A single `Topology` instance is shared across all requests (module-level singleton)
 
 **Endpoints:**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/alerts` | List all active alerts |
-| GET | `/topology` | List all nodes with type, status, and fault |
-| GET | `/nodes/{name}` | Full detail for a single node including metrics |
-| POST | `/nodes/{name}/restart` | Restart a hung node |
-| POST | `/nodes/{name}/turn_off` | Turn off a node |
-| POST | `/nodes/{name}/turn_on` | Turn on a node that is down |
-| POST | `/scenario` | Load a scenario from a JSON body |
-| POST | `/reset` | Reset all faults to normal |
+| GET | `/alerts` | List all active alerts (root-cause nodes only) |
+| GET | `/topology` | All nodes: name, type, status, fault, ip |
+| GET | `/nodes/{name}` | Full node detail including metrics (`to_dict()`) |
+| GET | `/nodes/{name}/logs?minutes=60` | Log lines for last N minutes; 503 if unreachable |
+| POST | `/nodes/{name}/ping?dst_ip=1.1.1.1` | Run ping test from this node to `dst_ip` |
+| POST | `/nodes/{name}/reboot` | Reboot a node (clears `hung`; logs action otherwise) |
+| POST | `/scenario` | Load scenario from JSON body; returns resulting alerts |
+| POST | `/reset` | Reset all faults to normal; returns clean topology |
 
 **Todo List:**
-1. Replace `main.py` content with a FastAPI app (`app = FastAPI()`)
-2. Instantiate `Topology` once as a module-level variable in `main.py`
-3. Implement `GET /alerts` — calls `get_active_alerts(topology)` and returns the list
-4. Implement `GET /topology` — returns `[node.to_dict() for node in topology.all_nodes()]`
-5. Implement `GET /nodes/{name}` — calls `topology.get_node(name).to_dict()`, returns
-   404 if the node does not exist
-6. Implement `POST /nodes/{name}/restart`, `/turn_off`, `/turn_on` — call the
-   corresponding `Node` methods; return the updated node dict
-7. Implement `POST /scenario` — accepts the scenario JSON body and calls
-   `topology.apply_scenario()`; returns the list of resulting active alerts
-8. Implement `POST /reset` — calls `topology.reset()` and confirms
-9. Add a `requirements.txt` with `fastapi` and `uvicorn`
+1. Create `main.py` with `app = FastAPI()` and a module-level `topology = Topology()`
+2. Implement `GET /alerts`
+3. Implement `GET /topology` using `node.to_dict()` for each node
+4. Implement `GET /nodes/{name}` — return 404 if node not found
+5. Implement `GET /nodes/{name}/logs` — pass `minutes` query param (default 60);
+   return 503 with `{"detail": "device unreachable"}` if `get_logs()` returns `None`
+6. Implement `POST /nodes/{name}/ping` — pass `dst_ip` query param;
+   return 503 if result contains all `None` values
+7. Implement `POST /nodes/{name}/reboot` — call `node.reboot()`, return updated `to_dict()`
+8. Implement `POST /scenario` — body matches scenario JSON format; return resulting alerts
+9. Implement `POST /reset` — call `topology.reset()`, return `topology.all_nodes()` as dicts
+10. Add `requirements.txt` with `fastapi` and `uvicorn[standard]`
 
 **Relevant Context:**
-- `Topology` from Sub-Task 2, `get_active_alerts` from Sub-Task 3
-- `Node.to_dict()` from Sub-Task 1
+- `Topology` from Sub-Task 1, `get_active_alerts` from Sub-Task 2
+- `Node.to_dict()`, `Node.get_logs()`, `Node.ping()`, `Node.reboot()` in [`node.py`](node.py)
 - Run with: `uvicorn main:app --reload`
+- `ping()` advances the clock — this is expected and intentional
