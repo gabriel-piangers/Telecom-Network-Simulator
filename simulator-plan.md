@@ -120,7 +120,7 @@ provide the scenario/reset interface used by the API layer.
 
 ### Sub-Task 2 — Build the Alert Engine
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Create `alerts.py` to simulate how a monitoring dashboard like Zabbix fires alerts:
